@@ -1,0 +1,20 @@
+package com.example.soiltest;
+
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+
+public class SensorFragment extends Fragment {
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        // Inflate the sensor_fragment.xml layout
+        return inflater.inflate(R.layout.sensor_fragment, container, false);
+    }
+}
