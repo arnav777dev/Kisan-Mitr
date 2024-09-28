@@ -1,4 +1,4 @@
-package com.example.soiltest;
+package com.example.soiltest.Data_Collection;
 
 import com.hoho.android.usbserial.driver.FtdiSerialDriver;
 import com.hoho.android.usbserial.driver.ProbeTable;
