@@ -1,4 +1,4 @@
-package com.example.soiltest;
+package com.example.soiltest.Data_Collection;
 
 import android.text.Editable;
 import android.text.InputType;

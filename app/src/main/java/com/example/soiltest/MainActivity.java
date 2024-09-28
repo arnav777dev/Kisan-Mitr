@@ -2,40 +2,32 @@ package com.example.soiltest;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.fragment.app.FragmentManager;
 
-public class MainActivity extends AppCompatActivity implements FragmentManager.OnBackStackChangedListener{
+import com.example.soiltest.Data_Collection.DataActivity;
+
+public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);  // Make sure you set the content view to your layout
+
+        // Enable EdgeToEdge
         EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        getSupportFragmentManager().addOnBackStackChangedListener(this);
-        if (savedInstanceState == null)
-            getSupportFragmentManager().beginTransaction().add(R.id.fragment, new DevicesFragment(), "devices").commit();
-        else
-            onBackStackChanged();
-    }
 
-    @Override
-    public void onBackStackChanged() {
-        getSupportActionBar().setDisplayHomeAsUpEnabled(getSupportFragmentManager().getBackStackEntryCount()>0);
-    }
-    @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
-    }
+        // Find the button by ID
+        Button buttonToDataActivity = findViewById(R.id.btn1);
 
-
+        // Set a click listener to navigate to DataActivity
+        buttonToDataActivity.setOnClickListener(v -> {
+            // Create an Intent to navigate to DataActivity
+            Intent intent = new Intent(MainActivity.this, DataActivity.class);
+            startActivity(intent);  // Start the DataActivity
+        });
+    }
 }

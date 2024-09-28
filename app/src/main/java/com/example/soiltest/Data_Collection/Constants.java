@@ -1,4 +1,4 @@
-package com.example.soiltest;
+package com.example.soiltest.Data_Collection;
 
 class Constants {
 
