@@ -1,6 +1,7 @@
 package com.example.soiltest.Data_Collection;
 
 
+import android.animation.ObjectAnimator;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -16,6 +17,7 @@ import android.text.SpannableStringBuilder;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
@@ -38,7 +40,7 @@ public class HomeFragment extends Fragment {
     private enum Connected {False, Pending, True}
 
     private Connected connected = Connected.False;
-    private final Handler mainLooper = new Handler(Looper.getMainLooper());
+
     private final BroadcastReceiver broadcastReceiver;
     private int deviceId, portNum, baudRate;
     private UsbSerialPort usbSerialPort;
@@ -98,23 +100,28 @@ public class HomeFragment extends Fragment {
     // Collect sample data
     private void collectSample() {
         Handler handler = new Handler(Looper.getMainLooper());
+        ProgressBar progressBar = getActivity().findViewById(R.id.progress_bar);
+        progressBar.setMax(30); // Set max to the total iterations
+        progressBar.setProgress(0);
         startBlinkingText(); // Start blinking text effect
 
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 30; i++) {
             final int index = i; // Need final index for the handler
             handler.postDelayed(() -> {
                 try {
                     send();
+                    progressBar.setProgress(index + 1);
                 } catch (IOException e) {
                     Toast.makeText(getActivity(), "Failed", Toast.LENGTH_SHORT).show();
                 }
-            }, index * 500); // 500ms delay for each iteration
+            }, index * 2000); // 500ms delay for each iteration
         }
 
         // Enable the button and stop blinking text after data collection is finished
         handler.postDelayed(() -> {
             stopBlinkingText(); // Stop blinking text effect
-        }, 20 * 500); // The total time of the collection process
+            progressBar.setProgress(30);
+        }, 30 * 2000); // The total time of the collection process
     }
 
     // USB connection management
@@ -263,9 +270,9 @@ public class HomeFragment extends Fragment {
             TextView pValueTextView = getActivity().findViewById(R.id.P_value);
             TextView kValueTextView = getActivity().findViewById(R.id.K_value);
 
-            nValueTextView.setText(String.valueOf(npk[0]));
-            pValueTextView.setText(String.valueOf(npk[1]));
-            kValueTextView.setText(String.valueOf(npk[2]));
+            setTextWithFade(nValueTextView, npk[0]);
+            setTextWithFade(pValueTextView, npk[1]);
+            setTextWithFade(kValueTextView, npk[2]);
 
             Log.d("HexToDecimal", "Updated NPK values: N=" + npk[0] + ", P=" + npk[1] + ", K=" + npk[2]);
 
@@ -273,8 +280,19 @@ public class HomeFragment extends Fragment {
             if (!sendBtn.isEnabled()) {
                 updateTextView(npk); // Repeat every 2 seconds until collection ends
             }
-
         }, 2000); // 2000ms delay for every update (2 seconds)
+        ;
+    }
+
+    private void setTextWithFade(TextView textView, int value) {
+        textView.setText(String.valueOf(value));
+
+        // Create a fade-in animation
+        ObjectAnimator fadeIn = ObjectAnimator.ofFloat(textView, "alpha", 0f, 1f);
+        fadeIn.setDuration(500); // Duration of the fade effect in milliseconds
+
+        // Start the fade-in animation
+        fadeIn.start();
     }
 
     // Writing data to USB serial

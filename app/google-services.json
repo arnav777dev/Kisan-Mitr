@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "202185222311",
+    "project_id": "soil-test-7f050",
+    "storage_bucket": "soil-test-7f050.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:202185222311:android:4f08b7d717e5c7287d1382",
+        "android_client_info": {
+          "package_name": "com.example.soiltest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIRh4W6DYd28nbc8Pgg8cAYHV_ZjFunHQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
