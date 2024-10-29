@@ -1,11 +1,14 @@
-package com.example.soiltest.Data_Collection;
+package com.example.soiltest.sensor_reading;
 
+
+import static android.content.ContentValues.TAG;
 
 import android.animation.ObjectAnimator;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
@@ -24,18 +27,32 @@ import android.view.View;
 
 import android.widget.Button;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.soiltest.R;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
-public class HomeFragment extends Fragment {
+public class ReadingUI extends Fragment {
+
+    private String farmerUID;
+    private String fieldUID;
+    private String name;
+    private String farmerName;
+
 
     private enum Connected {False, Pending, True}
 
@@ -49,8 +66,10 @@ public class HomeFragment extends Fragment {
     View sendBtn;
     private boolean isBlinking = false;
     private final Handler blinkHandler = new Handler(Looper.getMainLooper());
+    FirebaseFirestore db;
+    FirebaseAuth user;
 
-    public HomeFragment() {
+    public ReadingUI() {
         broadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -70,6 +89,11 @@ public class HomeFragment extends Fragment {
             deviceId = getArguments().getInt("device");
             portNum = getArguments().getInt("port");
             baudRate = getArguments().getInt("baud");
+            farmerUID = getArguments().getString("farmerUID");
+            fieldUID = getArguments().getString("fieldUID");
+            name = getArguments().getString("name");
+            farmerName = getArguments().getString("farmerName");
+
         }
     }
 
@@ -77,6 +101,11 @@ public class HomeFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.data_collector, container, false);
+
+        TextView farmer_name = view.findViewById(R.id.farmer_name);
+        farmer_name.setText(farmerName);
+        TextView field_name = view.findViewById(R.id.field_name);
+        field_name.setText(name);
         sendBtn = view.findViewById(R.id.get_data);
         sendBtn.setOnClickListener(v -> collectSample());
         return view;
@@ -85,17 +114,27 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        connect();
+        IntentFilter filter = new IntentFilter(Constants.INTENT_ACTION_GRANT_USB);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // For Android 13 and above, specify RECEIVER_NOT_EXPORTED
+            getActivity().registerReceiver(broadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            // For versions below Android 13, no need for the flag
+            getActivity().registerReceiver(broadcastReceiver, filter);
+        }
+
+        connect(); // Call your connect method
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        disconnect(); // Clean up resources
-        if (broadcastReceiver != null) {
-            getActivity().unregisterReceiver(broadcastReceiver);
-        }
-    }
+//    @Override
+//    public void onDestroy() {
+//        super.onDestroy();
+//        disconnect(); // Clean up resources
+//        if (broadcastReceiver != null) {
+//            getActivity().unregisterReceiver(broadcastReceiver);
+//        }
+//    }
 
     // Collect sample data
     private void collectSample() {
@@ -109,7 +148,7 @@ public class HomeFragment extends Fragment {
             final int index = i; // Need final index for the handler
             handler.postDelayed(() -> {
                 try {
-                    send();
+                    send(index);
                     progressBar.setProgress(index + 1);
                 } catch (IOException e) {
                     Toast.makeText(getActivity(), "Failed", Toast.LENGTH_SHORT).show();
@@ -214,7 +253,7 @@ public class HomeFragment extends Fragment {
     }
 
     // Sending data
-    private void send() throws IOException {
+    private void send(int ind) throws IOException {
         if (connected != Connected.True) {
             Toast.makeText(getActivity(), "Not connected", Toast.LENGTH_SHORT).show();
             return;
@@ -222,9 +261,9 @@ public class HomeFragment extends Fragment {
 
         // Hex strings to be sent
         String[] hexStrings = {
-                "01 03 00 1E 00 01 E4 0C",
-                "01 03 00 1F 00 01 B5 CC",
-                "01 03 00 20 00 01 85 C0"
+                "01 03 00 1E 00 01 E4 0C", // N
+                "01 03 00 1F 00 01 B5 CC", // P
+                "01 03 00 20 00 01 85 C0"  // K
         };
 
         Handler handler = new Handler(Looper.getMainLooper());
@@ -240,6 +279,12 @@ public class HomeFragment extends Fragment {
                     byte[] response = new byte[10];
                     int len = usbSerialPort.read(response, 90); // Placeholder for receiving data; replace with actual receiving logic
                     onNewData(response, finalI);
+                    Log.d(TAG, String.valueOf(len));
+
+                    // Check if all readings have been collected
+                    if (ind == 29) {
+                        sendDatatoFirebase(npk);
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -279,10 +324,47 @@ public class HomeFragment extends Fragment {
             // Repeat the update if still collecting
             if (!sendBtn.isEnabled()) {
                 updateTextView(npk); // Repeat every 2 seconds until collection ends
+
+
             }
         }, 2000); // 2000ms delay for every update (2 seconds)
-        ;
     }
+
+    // Send data to Firebase
+    private void sendDatatoFirebase(int[] npk) {
+        db = FirebaseFirestore.getInstance();
+        user = FirebaseAuth.getInstance();
+
+        String UID = user.getUid();
+
+
+
+        // Get the current date and time as a string for the document ID
+        Date date = new Date();
+        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy"); // Set the format pattern
+        String currentDate = formatter.format(date);
+        // Create a map to store the NPK values
+        Map<String, Object> npkData = new HashMap<>();
+        npkData.put("n_value", String.valueOf(npk[0]));
+        npkData.put("p_value", String.valueOf(npk[1]));
+        npkData.put("k_value", String.valueOf(npk[2]));
+        npkData.put("name", name);
+        npkData.put("date", currentDate);
+
+
+        db.collection("Users").document(UID)
+                .collection("Farmers").document(farmerUID)
+                .collection("Fields").document(fieldUID)
+                .set(npkData) // Use set() instead of add()
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("Firebase", "NPK values successfully written with ID: " + currentDate);
+                })
+                .addOnFailureListener(e -> {
+                    Log.w("Firebase", "Error writing document", e);
+                });
+    }
+
+
 
     private void setTextWithFade(TextView textView, int value) {
         textView.setText(String.valueOf(value));
@@ -301,6 +383,7 @@ public class HomeFragment extends Fragment {
             throw new IOException("Not connected");
         }
         usbSerialPort.write(data, 1000); // Timeout for writing
+        Log.d(TAG, data.toString());
     }
 
     private void startBlinkingText() {
@@ -328,4 +411,26 @@ public class HomeFragment extends Fragment {
             blinkButtonText(); // Schedule the next blink
         }, 500); // 500ms interval for the blink effect
     }
+
+    private OnBackPressedCallback onBackPressedCallback = new OnBackPressedCallback(true) {
+        @Override
+        public void handleOnBackPressed() {
+            disconnect();
+            requireActivity().getSupportFragmentManager().popBackStack(); // Navigate back
+        }
+    };
+
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        try {
+            getActivity().unregisterReceiver(broadcastReceiver);
+        } catch (IllegalArgumentException e) {
+            Log.e("HomeFragment", "Receiver not registered", e);
+        }
+        disconnect(); // Ensure you properly clean up the connection
+    }
+
+
 }

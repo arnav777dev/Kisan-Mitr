@@ -1,0 +1,19 @@
+<!-- res/drawable/truncated_square_top_right.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Draw the square background -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#000000"
+        android:strokeWidth="2"
+    android:pathData="M0,0 H100 V100 H0 Z" />
+
+    <!-- Draw a cut-out arc in the top-right corner -->
+    <path
+        android:fillColor="#FFFFFF"
+    android:pathData="M100,0 A50,50 0 0 0 50,50 L100,50 Z" />
+</vector>
