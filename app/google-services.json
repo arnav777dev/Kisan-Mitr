@@ -12,7 +12,20 @@
           "package_name": "com.example.soiltest"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "202185222311-3pfjhq1ej5iumggkcu013d8j74thdm2m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.soiltest",
+            "certificate_hash": "feeca073e15093c0ec79d6247dcf1fe6a060f3b8"
+          }
+        },
+        {
+          "client_id": "202185222311-q54013a5uv6666gbff97ktscibdjejf9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDIRh4W6DYd28nbc8Pgg8cAYHV_ZjFunHQ"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "202185222311-q54013a5uv6666gbff97ktscibdjejf9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -3,6 +3,7 @@ package com.example.soiltest;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -25,13 +26,11 @@ import androidx.fragment.app.Fragment;
 import com.example.soiltest.sensor_reading.DataActivity;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 public class FieldFragment extends Fragment {
@@ -47,6 +46,9 @@ public class FieldFragment extends Fragment {
     private String farmerName;
     Button addfield;
     private ProgressBar progressBar;
+
+    // Maintain a list of selected items
+    List<Field> selectedFields = new ArrayList<>();
 
     @Nullable
     @Override
@@ -108,66 +110,58 @@ public class FieldFragment extends Fragment {
             public void afterTextChanged(Editable editable) {}
         });
 
+
         listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                // Get the clicked farmer
+                // Get the clicked field
                 Field clickedField = filteredList.get(position);
-                String fieldUID = clickedField.getName() + "_" + farmerUID;
 
-                AlertDialog dialog = new AlertDialog.Builder(requireContext()) // Ensure you're in a Fragment
-                        .setTitle("Delete Field")
-                        .setMessage("Are you sure you want to delete this field?")
-                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Step 1: Remove the item from your local list
-                                filteredList.remove(position);
+                // Toggle selection
+                if (selectedFields.contains(clickedField)) {
+                    selectedFields.remove(clickedField); // Deselect if already selected
+                    view.setBackgroundColor(Color.TRANSPARENT); // Reset background color
+                } else {
+                    selectedFields.add(clickedField); // Select
+                    view.setBackgroundColor(Color.LTGRAY); // Change background color for selected item
+                }
 
-                                fieldAdapter.notifyDataSetChanged();
+                // Show sharing options if any fields are selected
+                if (!selectedFields.isEmpty()) {
+                    AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                            .setTitle("Share Selected Fields")
+                            .setMessage("Do you want to share the selected fields?")
+                            .setPositiveButton("Share", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dialog, int which) {
+                                    shareSelectedFields();
+                                }
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .create();
 
-                                mAuth = FirebaseAuth.getInstance();
-                                String UID = mAuth.getUid();
+// Set button text colors to ensure visibility in both dark and light modes
+                    dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+                        @Override
+                        public void onShow(DialogInterface dialogInterface) {
+                            Button positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                            Button negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
 
-                                FirebaseFirestore db = FirebaseFirestore.getInstance();
+                            // Set color for both dark and light modes (replace with your color resources)
+                            positiveButton.setTextColor(ContextCompat.getColor(requireContext(), R.color.white));
+                            negativeButton.setTextColor(ContextCompat.getColor(requireContext(), R.color.white));
+                        }
+                    });
 
-                                db.collection("Users").document(UID).collection("Farmers").document(farmerUID)
-                                        .delete()
-                                        .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                            @Override
-                                            public void onSuccess(Void aVoid) {
-                                                Log.d("Firestore", "Document successfully deleted!");
-                                            }
-                                        })
-                                        .addOnFailureListener(new OnFailureListener() {
-                                            @Override
-                                            public void onFailure(@NonNull Exception e) {
-                                                Log.w("Firestore", "Error deleting document", e);
-                                            }
-                                        });
-                            }
-                        })
-                        .setNegativeButton("No", null)
-                        .create(); // Use create() to build the AlertDialog
-                dialog.setOnShowListener(new DialogInterface.OnShowListener() {
-                    @Override
-                    public void onShow(DialogInterface dialog) {
-                        // Customize the button text color
-                        ((AlertDialog) dialog).getButton(AlertDialog.BUTTON_POSITIVE)
-                                .setTextColor(ContextCompat.getColor(requireContext(), R.color.white)); // Replace with your color resource
-                        ((AlertDialog) dialog).getButton(AlertDialog.BUTTON_NEGATIVE)
-                                .setTextColor(ContextCompat.getColor(requireContext(), R.color.white)); // Replace with your color resource
-                    }
-                });
+                    dialog.show();
 
-// Show the dialog after setting the OnShowListener
-                dialog.show();
-
-
+                }
 
                 // Return true to indicate that the long click was handled
                 return true;
             }
         });
+
+
 
         // Set item click listener for the ListView
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -190,6 +184,38 @@ public class FieldFragment extends Fragment {
 
         return view;
     }
+
+    private void shareSelectedFields() {
+        if (selectedFields.isEmpty()) {
+            Toast.makeText(requireContext(), "No fields selected to share", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        StringBuilder shareMessage = new StringBuilder();
+
+        for (Field field : selectedFields) {
+            shareMessage.append("Field Name: ").append(field.getName()).append("\n")
+                    .append("Date: ").append(field.getDate()).append("\n\n");
+
+            shareMessage.append("Nutrient          |   Actual Value | Ideal Range\n")
+                    .append(String.format("Nitrogen (N):       %-5s mg/kg  (100–200)\n", field.getN_value()))
+                    .append(String.format("Phosphorus (P): %-5s mg/kg  (25–50)\n", field.getP_value()))
+                    .append(String.format("Potassium (K):    %-5s mg/kg  (100–150)\n", field.getK_value()));
+            shareMessage.append("\n--------------------------\n"); // Separator for readability
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/plain");
+            shareIntent.putExtra(Intent.EXTRA_TEXT, shareMessage.toString());
+            startActivity(Intent.createChooser(shareIntent, "Share via"));
+
+            // Clear the selection after sharing
+            selectedFields.clear();
+            fieldAdapter.notifyDataSetChanged();
+        }
+    }
+
+
+
 
     private void fetchFieldsFromFirestore() {
         String userId = mAuth.getUid();
@@ -250,7 +276,6 @@ public class FieldFragment extends Fragment {
         }
         fieldAdapter.notifyDataSetChanged(); // Notify the adapter about the data change
     }
-
 
 
 }

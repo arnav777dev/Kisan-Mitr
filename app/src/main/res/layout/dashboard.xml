@@ -1,6 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             android:layout_width="match_parent"
-             android:layout_height="match_parent">
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawer_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/btn_clr">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- Main Content Layout -->
+
+    <!-- Side Sheet with ListView -->
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/app_bg">
+        <!-- Profile Picture -->
+
+        <!-- Welcome Text -->
+
+        <ImageView
+            android:id="@+id/profile_image"
+            android:layout_width="71dp"
+            android:layout_height="59dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/circle_background"
+            android:clickable="true"
+            android:contentDescription="Profile Picture"
+            android:elevation="2dp"
+            android:focusable="true"
+            android:scaleType="centerCrop"
+            android:src="@drawable/img"
+            app:layout_constraintBottom_toBottomOf="@id/heading"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.0" />
+
+        <TextView
+            android:id="@+id/heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
+            android:elevation="2dp"
+            android:text="@string/dashboard_welcome"
+            android:textColor="@color/text_clr"
+            android:textSize="24sp"
+            app:layout_constraintBottom_toBottomOf="@id/profile_image"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.042"
+            app:layout_constraintStart_toEndOf="@id/profile_image"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.407" />
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/frag_box"
+            android:name="com.example.soiltest.sensor_reading.DevicesFragment"
+            android:layout_width="340dp"
+            android:layout_height="680dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.492"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.546" />
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <LinearLayout
+        android:id="@+id/side_sheet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:background="@color/app_bg"
+        android:orientation="vertical"
+        android:textAlignment="center">
+
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Profile"
+            android:textAlignment="center"
+            android:textColor="@color/text_clr"
+            android:textSize="18dp"
+            android:textStyle="bold" />
+
+        <ListView
+            android:id="@+id/side_menu_list"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:background="@color/app_bg"
+            android:dividerHeight="1dp"
+            android:elevation="2dp"
+            android:textAlignment="center"
+            android:textColor="@color/text_clr">
+
+        </ListView>
+
+    </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>

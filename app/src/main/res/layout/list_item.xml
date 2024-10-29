@@ -3,12 +3,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:gravity="center"
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/list_item_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@color/text_clr"
-        android:textSize="18sp" />
+        android:gravity="center"
+        android:textSize="16dp" />
 </LinearLayout>

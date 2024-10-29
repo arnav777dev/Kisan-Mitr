@@ -1,4 +1,4 @@
-package com.example.soiltest.Data_Collection;
+package com.example.soiltest.sensor_reading;
 
 import android.app.AlertDialog;
 import android.content.Context;
@@ -6,6 +6,7 @@ import android.content.DialogInterface;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -28,6 +29,11 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class DevicesFragment extends ListFragment {
+    private String farmerUID;
+    private String fieldUID;
+    private String name;
+    private String farmerName;
+
 
     static class ListItem {
         UsbDevice device;
@@ -49,6 +55,14 @@ public class DevicesFragment extends ListFragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+
+        if(getArguments() != null){
+            farmerUID = getArguments().getString("farmerUID");
+            fieldUID = getArguments().getString("fieldUID");
+            name = getArguments().getString("name");
+            farmerName = getArguments().getString("farmerName");
+        }
+
         listAdapter = new ArrayAdapter<ListItem>(getActivity(), 0, listItems) {
             @NonNull
             @Override
@@ -58,14 +72,11 @@ public class DevicesFragment extends ListFragment {
                     view = getActivity().getLayoutInflater().inflate(R.layout.device_list_item, parent, false);
                 TextView text1 = view.findViewById(R.id.text1);
                 TextView text2 = view.findViewById(R.id.text2);
-                if(item.driver == null)
-                    text1.setText("<no driver>");
-                else if(item.driver.getPorts().size() == 1)
-                    text1.setText(item.driver.getClass().getSimpleName().replace("SerialDriver",""));
-                else
-                    text1.setText(item.driver.getClass().getSimpleName().replace("SerialDriver","")+", Port "+item.port);
+                text1.setText("NPK Soil Sensor");
+
                 text2.setText(String.format(Locale.US, "Vendor %04X, Product %04X", item.device.getVendorId(), item.device.getProductId()));
                 return view;
+
             }
         };
 
@@ -90,8 +101,11 @@ public class DevicesFragment extends ListFragment {
     @Override
     public void onResume() {
         super.onResume();
+        Log.d("sfd", "fdaaaffad");
+
         refresh();
     }
+
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -147,9 +161,13 @@ public class DevicesFragment extends ListFragment {
             args.putInt("device", item.device.getDeviceId());
             args.putInt("port", item.port);
             args.putInt("baud", baudRate);
-            Fragment fragment = new HomeFragment();
+            args.putString("farmerUID", farmerUID);
+            args.putString("fieldUID", fieldUID);
+            args.putString("name", name);
+            args.putString("farmerName", farmerName);
+            Fragment fragment = new ReadingUI();
             fragment.setArguments(args);
-            getParentFragmentManager().beginTransaction().replace(R.id.fragment, fragment, "terminal").addToBackStack(null).commit();
+            getParentFragmentManager().beginTransaction().replace(R.id.fragment, fragment, "terminal").commit();
         }
     }
 
