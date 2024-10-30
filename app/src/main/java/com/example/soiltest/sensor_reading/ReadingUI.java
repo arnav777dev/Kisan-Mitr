@@ -1,8 +1,6 @@
 package com.example.soiltest.sensor_reading;
 
 
-import static android.content.ContentValues.TAG;
-
 import android.animation.ObjectAnimator;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -20,12 +18,11 @@ import android.text.SpannableStringBuilder;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.view.animation.LinearInterpolator;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
-
-import android.widget.Button;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -41,9 +38,10 @@ import com.hoho.android.usbserial.driver.UsbSerialProber;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 
 public class ReadingUI extends Fragment {
@@ -53,21 +51,29 @@ public class ReadingUI extends Fragment {
     private String name;
     private String farmerName;
 
-
     private enum Connected {False, Pending, True}
-
     private Connected connected = Connected.False;
-
-    private final BroadcastReceiver broadcastReceiver;
+    private BroadcastReceiver broadcastReceiver;
     private int deviceId, portNum, baudRate;
     private UsbSerialPort usbSerialPort;
-    private String newline = TextUtil.newline_crlf;
-    private int[] npk = new int[3];
     View sendBtn;
-    private boolean isBlinking = false;
-    private final Handler blinkHandler = new Handler(Looper.getMainLooper());
-    FirebaseFirestore db;
-    FirebaseAuth user;
+
+    private TextView topLeftTextView, topRightTextView, centerTextView, bottomLeftTextView, bottomRightTextView, farmerNameTextView, fieldTextView;
+    ProgressBar progressBar;
+
+
+    private int[][] npk = new int[5][3];  // Each subarray holds N, P, K values for the five regions
+    private int[] npkAverages = new int[3];  // Store averaged N, P, K values
+    //     0  1  2
+    //     n  p  k
+
+
+    // 0 - top left
+    // 1 - top right
+    // 2 - bottom left
+    // 3 - bottom right
+    // 4 - center
+
 
     public ReadingUI() {
         broadcastReceiver = new BroadcastReceiver() {
@@ -97,19 +103,6 @@ public class ReadingUI extends Fragment {
         }
     }
 
-    @Nullable
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.data_collector, container, false);
-
-        TextView farmer_name = view.findViewById(R.id.farmer_name);
-        farmer_name.setText(farmerName);
-        TextView field_name = view.findViewById(R.id.field_name);
-        field_name.setText(name);
-        sendBtn = view.findViewById(R.id.get_data);
-        sendBtn.setOnClickListener(v -> collectSample());
-        return view;
-    }
 
     @Override
     public void onResume() {
@@ -124,46 +117,25 @@ public class ReadingUI extends Fragment {
             getActivity().registerReceiver(broadcastReceiver, filter);
         }
 
-        connect(); // Call your connect method
+        connect();
     }
 
-//    @Override
-//    public void onDestroy() {
-//        super.onDestroy();
-//        disconnect(); // Clean up resources
-//        if (broadcastReceiver != null) {
-//            getActivity().unregisterReceiver(broadcastReceiver);
-//        }
-//    }
-
-    // Collect sample data
-    private void collectSample() {
-        Handler handler = new Handler(Looper.getMainLooper());
-        ProgressBar progressBar = getActivity().findViewById(R.id.progress_bar);
-        progressBar.setMax(30); // Set max to the total iterations
-        progressBar.setProgress(0);
-        startBlinkingText(); // Start blinking text effect
-
-        for (int i = 0; i < 30; i++) {
-            final int index = i; // Need final index for the handler
-            handler.postDelayed(() -> {
-                try {
-                    send(index);
-                    progressBar.setProgress(index + 1);
-                } catch (IOException e) {
-                    Toast.makeText(getActivity(), "Failed", Toast.LENGTH_SHORT).show();
-                }
-            }, index * 2000); // 500ms delay for each iteration
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        disconnect(); // Clean up resources
+        // Unregister receiver only if it is registered
+        if (broadcastReceiver != null) {
+            try {
+                getActivity().unregisterReceiver(broadcastReceiver);
+                broadcastReceiver = null; // Clear reference after unregistering
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered, so no need to unregister
+                e.printStackTrace();
+            }
         }
-
-        // Enable the button and stop blinking text after data collection is finished
-        handler.postDelayed(() -> {
-            stopBlinkingText(); // Stop blinking text effect
-            progressBar.setProgress(30);
-        }, 30 * 2000); // The total time of the collection process
     }
 
-    // USB connection management
     private void connect() {
         connect(null);
     }
@@ -176,10 +148,6 @@ public class ReadingUI extends Fragment {
                 device = v;
                 break; // Found the device, break the loop
             }
-        }
-
-        if (permissionGranted == null) {
-            Toast.makeText(getActivity(), "Wait a Second", Toast.LENGTH_SHORT).show();
         }
 
         if (device == null) {
@@ -243,138 +211,11 @@ public class ReadingUI extends Fragment {
         usbSerialPort = null; // Nullify reference after closing
     }
 
-    // Status method for logging and UI feedback
     private void status(String str) {
-        Log.d("HomeFragment", "Status method called with: " + str); // Logging status
         if (getView() != null) {
             SpannableStringBuilder spn = new SpannableStringBuilder(str);
             Toast.makeText(getActivity(), spn, Toast.LENGTH_SHORT).show();
         }
-    }
-
-    // Sending data
-    private void send(int ind) throws IOException {
-        if (connected != Connected.True) {
-            Toast.makeText(getActivity(), "Not connected", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Hex strings to be sent
-        String[] hexStrings = {
-                "01 03 00 1E 00 01 E4 0C", // N
-                "01 03 00 1F 00 01 B5 CC", // P
-                "01 03 00 20 00 01 85 C0"  // K
-        };
-
-        Handler handler = new Handler(Looper.getMainLooper());
-        for (int i = 0; i < hexStrings.length; i++) {
-            final String str = hexStrings[i];
-            int finalI = i;
-
-            // Schedule each send with a delay
-            handler.postDelayed(() -> {
-                try {
-                    byte[] data = TextUtil.fromHexString(str);
-                    writeData(data);
-                    byte[] response = new byte[10];
-                    int len = usbSerialPort.read(response, 90); // Placeholder for receiving data; replace with actual receiving logic
-                    onNewData(response, finalI);
-                    Log.d(TAG, String.valueOf(len));
-
-                    // Check if all readings have been collected
-                    if (ind == 29) {
-                        sendDatatoFirebase(npk);
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }, 100); // 100ms interval for each string
-        }
-    }
-
-    // Handle received data
-    public void onNewData(byte[] data, int i) {
-        SpannableStringBuilder spn = new SpannableStringBuilder();
-        spn.append(TextUtil.toHexString(data)).append('\n');
-
-        String hexValue = String.valueOf(spn).substring(12, 14);
-        int decimalValue = Integer.parseInt(hexValue, 16);
-        npk[i] = decimalValue;
-
-        if (i == 2) {
-            updateTextView(npk);
-        }
-    }
-
-    // Update the UI with NPK values
-    private void updateTextView(int[] npk) {
-        Handler handler = new Handler(Looper.getMainLooper());
-
-        handler.postDelayed(() -> {
-            TextView nValueTextView = getActivity().findViewById(R.id.N_value);
-            TextView pValueTextView = getActivity().findViewById(R.id.P_value);
-            TextView kValueTextView = getActivity().findViewById(R.id.K_value);
-
-            setTextWithFade(nValueTextView, npk[0]);
-            setTextWithFade(pValueTextView, npk[1]);
-            setTextWithFade(kValueTextView, npk[2]);
-
-            Log.d("HexToDecimal", "Updated NPK values: N=" + npk[0] + ", P=" + npk[1] + ", K=" + npk[2]);
-
-            // Repeat the update if still collecting
-            if (!sendBtn.isEnabled()) {
-                updateTextView(npk); // Repeat every 2 seconds until collection ends
-
-
-            }
-        }, 2000); // 2000ms delay for every update (2 seconds)
-    }
-
-    // Send data to Firebase
-    private void sendDatatoFirebase(int[] npk) {
-        db = FirebaseFirestore.getInstance();
-        user = FirebaseAuth.getInstance();
-
-        String UID = user.getUid();
-
-
-
-        // Get the current date and time as a string for the document ID
-        Date date = new Date();
-        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy"); // Set the format pattern
-        String currentDate = formatter.format(date);
-        // Create a map to store the NPK values
-        Map<String, Object> npkData = new HashMap<>();
-        npkData.put("n_value", String.valueOf(npk[0]));
-        npkData.put("p_value", String.valueOf(npk[1]));
-        npkData.put("k_value", String.valueOf(npk[2]));
-        npkData.put("name", name);
-        npkData.put("date", currentDate);
-
-
-        db.collection("Users").document(UID)
-                .collection("Farmers").document(farmerUID)
-                .collection("Fields").document(fieldUID)
-                .set(npkData) // Use set() instead of add()
-                .addOnSuccessListener(aVoid -> {
-                    Log.d("Firebase", "NPK values successfully written with ID: " + currentDate);
-                })
-                .addOnFailureListener(e -> {
-                    Log.w("Firebase", "Error writing document", e);
-                });
-    }
-
-
-
-    private void setTextWithFade(TextView textView, int value) {
-        textView.setText(String.valueOf(value));
-
-        // Create a fade-in animation
-        ObjectAnimator fadeIn = ObjectAnimator.ofFloat(textView, "alpha", 0f, 1f);
-        fadeIn.setDuration(500); // Duration of the fade effect in milliseconds
-
-        // Start the fade-in animation
-        fadeIn.start();
     }
 
     // Writing data to USB serial
@@ -382,44 +223,16 @@ public class ReadingUI extends Fragment {
         if (connected != Connected.True) {
             throw new IOException("Not connected");
         }
-        usbSerialPort.write(data, 1000); // Timeout for writing
-        Log.d(TAG, data.toString());
-    }
-
-    private void startBlinkingText() {
-        isBlinking = true;
-        blinkButtonText(); // Start the blinking effect
-    }
-
-    private void stopBlinkingText() {
-        isBlinking = false;
-        blinkHandler.removeCallbacksAndMessages(null); // Stop the blinking handler
-        ((Button) sendBtn).setText("Start Collecting"); // Reset the button text
-    }
-
-    private void blinkButtonText() {
-        blinkHandler.postDelayed(() -> {
-            if (!isBlinking) return; // Stop if blinking is disabled
-
-            Button button = (Button) sendBtn;
-            if ("Collecting...".equals(button.getText().toString())) {
-                button.setText(" "); // Hide text to create a blink effect
-            } else {
-                button.setText("Collecting...");
-            }
-
-            blinkButtonText(); // Schedule the next blink
-        }, 500); // 500ms interval for the blink effect
+        usbSerialPort.write(data, 1000);
     }
 
     private OnBackPressedCallback onBackPressedCallback = new OnBackPressedCallback(true) {
         @Override
         public void handleOnBackPressed() {
             disconnect();
-            requireActivity().getSupportFragmentManager().popBackStack(); // Navigate back
+            requireActivity().getSupportFragmentManager().popBackStack();
         }
     };
-
 
     @Override
     public void onPause() {
@@ -430,6 +243,273 @@ public class ReadingUI extends Fragment {
             Log.e("HomeFragment", "Receiver not registered", e);
         }
         disconnect(); // Ensure you properly clean up the connection
+    }
+
+    @Override
+    @Nullable
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.field_reading, container, false);
+
+
+
+        // Initialize TextViews
+        topLeftTextView = view.findViewById(R.id.top_left);
+        topRightTextView = view.findViewById(R.id.top_right);
+        centerTextView = view.findViewById(R.id.center);
+        bottomLeftTextView = view.findViewById(R.id.bottom_left);
+        bottomRightTextView = view.findViewById(R.id.bottom_right);
+        farmerNameTextView = view.findViewById(R.id.farmer_name);
+        fieldTextView = view.findViewById(R.id.field_name);
+
+        farmerNameTextView.setText(farmerName);
+        fieldTextView.setText(name);
+
+        // Setup onClickListeners to collect samples for each region
+        topLeftTextView.setOnClickListener(view1 -> collectSample(0));
+        topRightTextView.setOnClickListener(view1 -> collectSample(1));
+        centerTextView.setOnClickListener(view1 -> collectSample(4));
+        bottomLeftTextView.setOnClickListener(view1 -> collectSample(2));
+        bottomRightTextView.setOnClickListener(view1 -> collectSample(3));
+
+        sendBtn = view.findViewById(R.id.get_data);
+        sendBtn.setOnClickListener(v -> sendDatatoFirebase(averageNPKValues()));
+
+        return view;
+    }
+
+    // Collect samples for a specific region
+    private void collectSample(int regionIndex) {
+        Handler handler = new Handler(Looper.getMainLooper());
+        progressBar = getActivity().findViewById(R.id.progress_bar);
+        progressBar.setMax(30);
+        progressBar.setProgress(0);
+
+        // Start blinking animation for the selected region's TextView
+        startBlinkAnimation(regionIndex);
+
+        for (int i = 0; i < 30; i++) {
+            final int index = i;
+            handler.postDelayed(() -> {
+                try {
+                    send(regionIndex);
+                    progressBar.setProgress(index + 1);
+                } catch (IOException e) {
+                    Toast.makeText(getActivity(), "Failed to collect data", Toast.LENGTH_SHORT).show();
+                }
+            }, index * 500); // 2-second interval for each iteration
+        }
+
+        // Finalize data collection after 30 iterations
+        handler.postDelayed(() -> {
+            progressBar.setProgress(30);
+            stopBlinkAnimation(regionIndex);
+            setFinalBackground(regionIndex);
+        }, 30 * 500);
+    }
+
+    // Start blinking animation for a region's TextView
+    private void startBlinkAnimation(int regionIndex) {
+        TextView regionTextView = getRegionTextView(regionIndex);
+        if (regionTextView != null) {
+            ObjectAnimator blinkAnimator = ObjectAnimator.ofFloat(regionTextView, "alpha", 1f, 0f);
+            blinkAnimator.setDuration(500); // Blink interval
+            blinkAnimator.setInterpolator(new LinearInterpolator());
+            blinkAnimator.setRepeatMode(ObjectAnimator.REVERSE);
+            blinkAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+            blinkAnimator.start();
+
+            regionTextView.setTag(blinkAnimator); // Save animator in tag for later use
+        }
+    }
+
+    // Stop the blinking animation and reset the background
+    private void stopBlinkAnimation(int regionIndex) {
+        TextView regionTextView = getRegionTextView(regionIndex);
+        if (regionTextView != null) {
+            ObjectAnimator blinkAnimator = (ObjectAnimator) regionTextView.getTag();
+            if (blinkAnimator != null) {
+                blinkAnimator.cancel();
+                regionTextView.setAlpha(1f); // Reset alpha
+            }
+        }
+    }
+
+    // Set the final background drawable after data collection is complete
+    private void setFinalBackground(int regionIndex) {
+        TextView regionTextView = getRegionTextView(regionIndex);
+        if (regionTextView != null) {
+            regionTextView.setBackgroundResource(R.drawable.pro_rectangle_field);
+            regionTextView.setTextColor(getResources().getColor(R.color.white));
+            progressBar.setProgress(0);
+        }
+    }
+    // Helper method to get the TextView based on region index
+    private TextView getRegionTextView(int regionIndex) {
+        switch (regionIndex) {
+            case 0: return topLeftTextView;
+            case 1: return topRightTextView;
+            case 2: return bottomLeftTextView;
+            case 3: return bottomRightTextView;
+            case 4: return centerTextView;
+            default: return null;
+        }
+    }
+
+
+    // Send request for each nutrient
+    private void send(int regionIndex) throws IOException {
+        if (connected != Connected.True) {
+            Toast.makeText(getActivity(), "Not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String[] hexStrings = {
+                "01 03 00 1E 00 01 E4 0C", // N
+                "01 03 00 1F 00 01 B5 CC", // P
+                "01 03 00 20 00 01 85 C0"  // K
+        };
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        for (int i = 0; i < hexStrings.length; i++) {
+            final String str = hexStrings[i];
+            int finalI = i;
+            handler.postDelayed(() -> {
+                try {
+                    byte[] data = TextUtil.fromHexString(str);
+                    writeData(data);
+                    byte[] response = new byte[10];
+                    int len = usbSerialPort.read(response, 90); // Adjust based on actual response logic
+                    onNewData(response, regionIndex, finalI); // Pass region and nutrient index
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }, 100); // 100ms interval
+        }
+    }
+
+    // Process new data and update UI in real-time
+    public void onNewData(byte[] data, int regionIndex, int nutrientIndex) {
+        String hexValue = TextUtil.toHexString(data).substring(12, 14);
+        int decimalValue = Integer.parseInt(hexValue, 16);
+        npk[regionIndex][nutrientIndex] = decimalValue;
+
+        // Update each region's TextView with new values in real-time
+        updateRegionTextView(regionIndex);
+    }
+
+    // Update UI for each region's NPK values
+    private void updateRegionTextView(int regionIndex) {
+        String npkText = "N: " + npk[regionIndex][0] + "\n P: " + npk[regionIndex][1] + "\n K: " + npk[regionIndex][2];
+
+        switch (regionIndex) {
+            case 0:
+                topLeftTextView.setText(npkText);
+                break;
+            case 1:
+                topRightTextView.setText(npkText);
+                break;
+            case 2:
+                bottomLeftTextView.setText(npkText);
+                break;
+            case 3:
+                bottomRightTextView.setText(npkText);
+                break;
+            case 4:
+                centerTextView.setText(npkText);
+                break;
+        }
+    }
+
+    // Calculate average NPK values
+    private int[] averageNPKValues() {
+        int[] avgNpk = new int[3]; // N, P, K
+        for (int i = 0; i < 5; i++) { // Sum for each region
+            for (int j = 0; j < 3; j++) {
+                avgNpk[j] += npk[i][j];
+//                Log.d("ceck avg", npk[i][0] + " " + npk[i][1] + " " + npk[i][2]);
+            }
+        }
+        for (int i = 0; i < 3; i++) { // Calculate averages
+            avgNpk[i] /= 5;
+        }
+        Log.d("avg", Arrays.toString(avgNpk));
+        return avgNpk;
+    }
+
+    // Send data to Firebase after averaging
+    private void sendDatatoFirebase(int[] avgNpk) {
+
+        TextView avg_readings = getActivity().findViewById(R.id.avg_readings);
+
+        StringBuilder final_readings = new StringBuilder();
+        final_readings.append("Nutrient            | Actual Value | Ideal Range\n")
+                .append(String.format("Nitrogen (N):       %-5s mg/kg    (100–200)\n", avgNpk[0]))
+                .append(String.format("Phosphorus (P): %-5s mg/kg    (25–50)\n", avgNpk[1]))
+                .append(String.format("Potassium (K):    %-5s mg/kg    (100–150)\n", avgNpk[2]));
+
+        avg_readings.setText(final_readings.toString());
+
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        FirebaseAuth user = FirebaseAuth.getInstance();
+
+        String UID = user.getUid();
+        Date date = new Date();
+        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy");
+        String currentDate = formatter.format(date);
+
+        Map<String, String> npkData = new HashMap<>();
+        npkData.put("n_value", String.valueOf(avgNpk[0]));
+        npkData.put("p_value", String.valueOf(avgNpk[1]));
+        npkData.put("k_value", String.valueOf(avgNpk[2]));
+
+
+        npkData.put("name", name);
+        npkData.put("date", currentDate);
+
+//        int byteSize = 0;
+//        for (Map.Entry<String, String> entry : npkData.entrySet()) {
+//            byteSize += entry.getKey().getBytes().length;   // Size of key in bytes
+//            byteSize += entry.getValue().getBytes().length; // Size of value in bytes
+//        }
+//
+//        Log.d("size in bytes", String.valueOf(byteSize));
+        db.collection("Users").document(UID).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        int byteSize = 0;
+                        for (Map.Entry<String, Object> entry : documentSnapshot.getData().entrySet()) {
+                            String key = entry.getKey();
+                            Object value = entry.getValue();
+
+                            // Calculate key size
+                            byteSize += key.getBytes().length;
+
+                            // Calculate value size based on its type
+                            if (value instanceof String) {
+                                byteSize += ((String) value).getBytes().length;
+                            } else if (value instanceof Long || value instanceof Double) {
+                                byteSize += 8;  // Long and Double generally take 8 bytes
+                            } else if (value instanceof Boolean) {
+                                byteSize += 1;  // Boolean takes 1 byte
+                            } else if (value instanceof Map || value instanceof List) {
+                                // You could recursively calculate size for nested maps/lists if needed
+                            }
+                            // Add more types as needed
+                        }
+                        Log.d("Document size in bytes", String.valueOf(byteSize));
+                    }
+                })
+                .addOnFailureListener(e -> Log.e("Error fetching document", e.toString()));
+
+
+
+
+        db.collection("Users").document(UID)
+                .collection("Farmers").document(farmerUID)
+                .collection("Fields").document(fieldUID)
+                .set(npkData)
+                .addOnSuccessListener(aVoid -> Log.d("Firebase", "NPK values successfully uploaded"))
+                .addOnFailureListener(e -> Log.w("Firebase", "Error writing document", e));
     }
 
 

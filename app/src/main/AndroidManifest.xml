@@ -13,7 +13,7 @@
         android:theme="@style/Theme.SoilTest"
         tools:targetApi="31">
         <receiver
-            android:name=".sensor_reading.ReadingUI$MyBroadcastReceiver"
+            android:name="com.example.soiltest.sensor_reading.ReadingUI"
             android:exported="false" />
         <activity
             android:name=".ui.login.LoginActivity"

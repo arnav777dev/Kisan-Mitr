@@ -239,11 +239,11 @@ public class FieldFragment extends Fragment {
                                 N_value = (N_value == null || N_value.isEmpty()) ? "0" : N_value;
                                 K_value = (K_value == null || K_value.isEmpty()) ? "0" : K_value;
                                 P_value = (P_value == null || P_value.isEmpty()) ? "0" : P_value;
-                                date = (date == null || date.isEmpty()) ? "" : date;
+                                date = (date == null || date.isEmpty()) ? "" : "     " + date;
 
                                 if (fieldName != null) {
                                     // Create a Field object and add it to the list
-                                    fieldList.add(new Field(fieldName, farmerUID, N_value, K_value, P_value, date));
+                                    fieldList.add(new Field(fieldName, farmerUID, N_value, P_value, K_value, date));
                                 }
 //                                Log.d("FieldFragment", "Number of fields fetched: " + fieldList.size());
 

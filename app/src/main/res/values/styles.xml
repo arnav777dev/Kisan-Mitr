@@ -14,4 +14,11 @@
         <item name="android:textColor">@color/black</item>
         <item name="android:textSize">30sp</item>
     </style>
+
+    <style name="CustomButtonStyle">
+        <item name="android:background">@drawable/pre_rectangle_field</item> <!-- Custom drawable -->
+        <item name="android:textColor">@color/black</item> <!-- Text color -->
+        <item name="android:padding">16dp</item> <!-- Padding -->
+        <item name="android:elevation">8dp</item> <!-- Elevation for shadow effect -->
+    </style>
 </resources>
